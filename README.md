@@ -16,5 +16,6 @@ remotes::install_github(repo = "Hla-Lab/SeuratExplorer")
 ## Running the App
 To open SeuratExplorer, launch the app from the R console or Rstudio
 ```{r}
+library(SeuratExplorer)
 launchSeuratExplorer()
 ```

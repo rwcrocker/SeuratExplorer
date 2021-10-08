@@ -3,8 +3,15 @@
 ################################################################################
 
 
+#' @import Seurat ggplot2 cowplot
+#' @import dplyr scales shiny shinydashboard
+NULL
+
 ### App Fxns  ###
 
+#' Launch SeuratExplorer
+#' @return In-browser Shiny Application launch
+#' @export
 launchSeuratExplorer <- function(){
   shinyApp(ui, server)
 }
