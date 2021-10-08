@@ -3,12 +3,12 @@
 ################################################################################
 
 
-req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "tidyverse", "scales", "cowplot", "")
+req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "tidyverse", "scales", "cowplot")
 lapply(req_packages, require, character.only = TRUE)
 
 
-source("./aux_functions.R")
-source("./ligand_receptor.R")
+# source("./aux_functions.R")
+# source("./ligand_receptor.R")
 
 #Defaults
 ex_genes = "Actb, Tubb1, S1pr1..."
@@ -404,9 +404,6 @@ server = function(input, output){
   outputOptions(output, 'lr_loaded', suspendWhenHidden=FALSE)
   
 }
-
-
-shinyApp(ui, server)
 
 
 

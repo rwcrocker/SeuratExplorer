@@ -2,6 +2,14 @@
 #              Functions for Seurat Explorer                                   #
 ################################################################################
 
+
+### App Fxns  ###
+
+launchSeuratExplorer <- function(){
+  shinyApp(ui, server)
+}
+
+
 ###  Seurat Related Fxns  ###
 
 switch_idents <- function(obj, meta.col){
@@ -31,9 +39,6 @@ check_packages_fxns = function(req_packages=NULL, req_fxns=NULL){
   else
     paste0("All required packages and functions successfully loaded...")
 }
-
-
-
 
 
 ###  ggplot2 themes  ###
