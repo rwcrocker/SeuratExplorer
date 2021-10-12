@@ -5,6 +5,7 @@
 
 #' @import Seurat ggplot2 cowplot
 #' @import dplyr scales shiny shinydashboard
+#' @import stringr
 NULL
 
 ### App Fxns  ###
@@ -26,7 +27,7 @@ switch_idents <- function(obj, meta.col){
 }
 
 read_genes <- function(str){
-  genes = as.vector(str_trim(unlist(strsplit(str, split=","))))
+  genes = as.vector(stringr::str_trim(unlist(strsplit(str, split=","))))
   return(genes)
 }
 

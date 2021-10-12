@@ -7,8 +7,8 @@ req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "dplyr", "scale
 lapply(req_packages, require, character.only = TRUE)
 
 
-# source("./aux_functions.R")
-# source("./ligand_receptor.R")
+#source("./aux_functions.R")
+#source("./ligand_receptor.R")
 
 #Defaults
 ex_genes = "Actb, Tubb1, S1pr1..."
@@ -18,7 +18,7 @@ ex_genes = "Actb, Tubb1, S1pr1..."
 
 ## Header  ###
 
-header <- dashboardHeader(title = "Seurat-Explorer")
+header <- dashboardHeader(title = "SeuratExplorer")
 
 ###  Sidebar  ###
 
@@ -269,7 +269,7 @@ server = function(input, output){
   })
   
   observe({
-    vln$genelist = as.vector(str_trim(unlist(strsplit(input$vln_gene, split=","))))
+    vln$genelist = as.vector(stringr::str_trim(unlist(strsplit(input$vln_gene, split=","))))
     vln$is_multi = length(vln$genelist) > 1
     updateSelectInput(inputId = "vln_idents", choices = data$annotation_identities)
     
@@ -292,7 +292,7 @@ server = function(input, output){
 ###   DotPlot tab   ###
   
   observe({
-    dot$genelist = as.vector(str_trim(unlist(strsplit(input$dot_gene, split=","))))
+    dot$genelist = as.vector(stringr::str_trim(unlist(strsplit(input$dot_gene, split=","))))
     updateSelectInput(inputId = "dot_idents", choices = data$annotation_identities)
   })
   
