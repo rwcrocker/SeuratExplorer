@@ -11,9 +11,6 @@ req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "dplyr", "scale
 lapply(req_packages, require, character.only = TRUE)
 
 
-#source("./aux_functions.R")
-#source("./ligand_receptor.R")
-
 #Defaults
 ex_genes = "Actb, Tubb1, S1pr1..."
 
@@ -172,11 +169,6 @@ ui <- dashboardPage(header, sidebar, body)
 
 # Defaults
 categorical_col_exceptions = c("cells")                                         #exceptions to prevent crash from too many identities
-lr_db_path = c("./resources/")
-
-
-
-
 
 server = function(input, output){
     options(shiny.maxRequestSize=5*1024^3)                                      #required for large seurat objs
@@ -187,7 +179,7 @@ server = function(input, output){
   vln <- reactiveValues(genelist=NULL, identlist=NULL, is_multi=NULL, splitby=NULL)
   dot <- reactiveValues(genelist=NULL, identlist=NULL)
   de <- reactiveValues(comparison=NULL, ref_cells=NULL, exp_cells=NULL, table=NULL, is_loaded = FALSE)
-  lr <- reactiveValues(table=NULL, subobj=NULL, condition_options=NULL, signatures=NULL, degs=NULL, is_loaded = FALSE)
+  lr <- reactiveValues(table=NULL, subobj=NULL, condition_options=NULL, signatures=NULL, degs=NULL, is_loaded = FALSE, db=NULL)
   
   ###   Dataset tab   ###
   
@@ -359,7 +351,7 @@ server = function(input, output){
   })
   
   observe({
-    updateSelectInput(inputId = "lr_db", choices = dir("./resources/CellTalkDB/"))
+    updateSelectInput(inputId = "lr_db", choices = c("Mouse", "Human"), selected = "Mouse")
   })
   
   observe({
@@ -376,15 +368,26 @@ server = function(input, output){
     updateSelectInput(inputId = "lr_experimental", choices = lr$condition_options)
   })
   
+  observe({
+    if(input$lr_db == "Mouse"){
+      lr$db = Mouse_CellTalkDB
+      print("M")
+    }
+    if(input$lr_db == "Human"){
+      lr$db = Human_CellTalkDB
+      print("H")
+    }
+  })
+  
   observeEvent(input$lr_analyze, {
     lr$subobj = subset(data$obj, idents = input$lr_clusters)
     lr$signatures = FindAllMarkers(lr$subobj, only.pos = TRUE)%>%
       filter(p_val_adj < input$lr_signature_cutoff)
-    lr$table = Analyze_LR(lr$signatures, db_path = paste0("./resources/CellTalkDB/", input$lr_db))
+    lr$table = Analyze_LR(lr$signatures, db = lr$db)
     lr$is_loaded = TRUE
     if (input$lr_condition != "None"){
       lr$degs = Find_Condition_DEGs(lr$subobj, condition = input$lr_condition, reference.cond = input$lr_reference, experimental.cond = input$lr_experimental, padj.cut = input$lr_deg_cutoff)
-      lr$table = Crossreference_LR(lr$table, DEG.table = lr$degs, db.path = paste0("./resources/CellTalkDB/", input$lr_db))
+      lr$table = Crossreference_LR(lr$table, DEG.table = lr$degs, db = lr$db)
     }
   })
   

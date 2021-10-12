@@ -31,11 +31,9 @@ Find_Condition_DEGs=function(seurat_obj, condition, reference.cond, experimental
 
 
 #Subset markers to LR members with CellTalk database and generate a LR table
-Analyze_LR = function(marker_df, db_path){
+Analyze_LR = function(marker_df, db){
   req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot")
   lapply(req_packages, require, character.only = TRUE)
-  
-  db = read_tsv(db_path)
   
   #Annotate Ls and Rs in marker set
   marker_df$is_ligand=NA
@@ -112,7 +110,7 @@ Analyze_LR = function(marker_df, db_path){
   
 }
 
-Crossreference_LR = function(LR.table, DEG.table, db.path){
+Crossreference_LR = function(LR.table, DEG.table, db){
   req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot", "plyr")
   lapply(req_packages, require, character.only = TRUE)
   
@@ -151,7 +149,7 @@ Crossreference_LR = function(LR.table, DEG.table, db.path){
   #Check to make sure there are not DEG-based LR pairs that are not signature genes...
   #Use the same function on DEGs instead of signatures
   #Rename stats to be consistent with the LR.table
-  backcross = Analyze_LR(DEG.table, db_path = db.path)
+  backcross = Analyze_LR(DEG.table, db = db)
   
   if(!(all(backcross$interaction %in% LR.table$interaction))){
     backcross = backcross %>%
