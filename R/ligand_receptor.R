@@ -15,8 +15,7 @@ csv_to_vector = function(string){
 
 # Determine effect of condition for each cluster
 Find_Condition_DEGs=function(seurat_obj, condition, reference.cond, experimental.cond, padj.cut=0.05){
-  check_packages_fxns(req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot"),
-                      req_fxns = c("csv_to_vector"))
+  require("Seurat", "tidyverse", "ggplot2", "cowplot")
 
   DEGs = list()
   for (clust in unique(seurat_obj@active.ident)){
@@ -33,9 +32,9 @@ Find_Condition_DEGs=function(seurat_obj, condition, reference.cond, experimental
 
 #Subset markers to LR members with CellTalk database and generate a LR table
 Analyze_LR = function(marker_df, db_path){
-  check_packages_fxns(req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot"),
-                      req_fxns = c("csv_to_vector"))
-
+  req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot")
+  lapply(req_packages, require, character.only = TRUE)
+  
   db = read_tsv(db_path)
   
   #Annotate Ls and Rs in marker set
@@ -115,8 +114,7 @@ Analyze_LR = function(marker_df, db_path){
 
 Crossreference_LR = function(LR.table, DEG.table, db.path){
   req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot", "plyr")
-  req_fxns = c("csv_to_vector")
-  check_packages_fxns(req_packages, req_fxns)
+  lapply(req_packages, require, character.only = TRUE)
   
   LR.table$receptor_is_condition_DE=NA
   LR.table$ligand_is_condition_DE=NA

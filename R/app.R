@@ -2,6 +2,10 @@
 ###                        Seurat-Explorer App                               ###
 ################################################################################
 
+#' @import Seurat ggplot2 cowplot
+#' @import dplyr scales shiny shinydashboard
+#' @import stringr
+NULL
 
 req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "dplyr", "scales", "cowplot", "stringr")
 lapply(req_packages, require, character.only = TRUE)
