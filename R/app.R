@@ -3,7 +3,7 @@
 ################################################################################
 
 
-req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "dplyr", "scales", "cowplot")
+req_packages = c("Seurat", "ggplot2", "shiny", "shinydashboard", "dplyr", "scales", "cowplot", "stringr")
 lapply(req_packages, require, character.only = TRUE)
 
 
