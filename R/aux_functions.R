@@ -5,6 +5,7 @@
 
 #' @import Seurat ggplot2 cowplot
 #' @import dplyr scales shiny shinydashboard
+#' @import stringr
 NULL
 
 ### App Fxns  ###
