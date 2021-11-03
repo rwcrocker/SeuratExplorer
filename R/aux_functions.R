@@ -14,7 +14,7 @@ NULL
 #' @return In-browser Shiny Application launch
 #' @export
 launchSeuratExplorer <- function(){
-  shinyApp(ui, server)
+  runApp(appDir = "./R/", launch.browser = TRUE)
 }
 
 

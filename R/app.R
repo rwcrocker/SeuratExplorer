@@ -370,11 +370,11 @@ server = function(input, output){
   
   observe({
     if(input$lr_db == "Mouse"){
-      lr$db = Mouse_CellTalkDB
+      lr$db = SeuratExplorer:::Mouse_CellTalkDB
       print("M")
     }
     if(input$lr_db == "Human"){
-      lr$db = Human_CellTalkDB
+      lr$db = SeuratExplorer:::Human_CellTalkDB
       print("H")
     }
   })
@@ -412,7 +412,7 @@ server = function(input, output){
   
 }
 
-
+shinyApp(ui, server)
 
 
 
