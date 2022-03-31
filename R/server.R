@@ -5,11 +5,11 @@
 #' @import dplyr scales shiny shinydashboard
 #' @import stringr
 
-# Defaults
-categorical_col_exceptions = c("cells")                                         #exceptions to prevent crash from too many identities
+# TODO switch out this hard coded exception for a check of unique identities in a column --> remove if > say 100
+categorical_col_exceptions = c("cells")
 
 server = function(input, output){
-  options(shiny.maxRequestSize=5*1024^3)                                      #required for large seurat objs
+  options(shiny.maxRequestSize=5*1024^3)
   
   #Initalize reactive values to hold changing data for each tab
   data = reactiveValues(obj = NULL, meta=NULL, categorical_cols=NULL, annotation_identities=NULL, is_loaded=FALSE)

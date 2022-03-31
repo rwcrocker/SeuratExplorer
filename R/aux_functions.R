@@ -16,7 +16,6 @@ launchSeuratExplorer <- function(){
   runApp(app, launch.browser = TRUE)
 }
 
-
 ###  Seurat Related Fxns  ###
 
 switch_idents <- function(obj, meta.col){
