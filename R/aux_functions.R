@@ -1,7 +1,5 @@
-################################################################################
-#              Functions for Seurat Explorer                                   #
-################################################################################
-
+# aux_functions.R
+# auxillary functions needed for the package
 
 #' @import Seurat ggplot2 cowplot
 #' @import dplyr scales shiny shinydashboard
