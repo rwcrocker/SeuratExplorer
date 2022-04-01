@@ -5,84 +5,74 @@
 #' @import dplyr scales shiny shinydashboard
 #' @import stringr
 
-# TODO switch out this hard coded exception for a check of unique identities in a column --> remove if > say 100
-categorical_col_exceptions = c("cells")
-
 server = function(input, output){
   options(shiny.maxRequestSize=5*1024^3)
   
-  #Initalize reactive values to hold changing data for each tab
-  data = reactiveValues(obj = NULL, meta=NULL, categorical_cols=NULL, annotation_identities=NULL, is_loaded=FALSE)
-  umap = reactiveValues(genelist=NULL, splitby=NULL, featplot=NULL)
-  vln = reactiveValues(genelist=NULL, identlist=NULL, is_multi=NULL, splitby=NULL)
-  dot = reactiveValues(genelist=NULL, identlist=NULL)
-  de = reactiveValues(comparison=NULL, ref_cells=NULL, exp_cells=NULL, table=NULL, is_loaded = FALSE)
-  lr = reactiveValues(table=NULL, subobj=NULL, condition_options=NULL, signatures=NULL, degs=NULL, is_loaded = FALSE, db=NULL)
+  ## Dataset tab ----
+  data = reactiveValues(obj = NULL, legit_annotations=NULL, annotation_idents=NULL, loaded=FALSE)
   
-  ###   Dataset tab   ###
-  
-  #Always fetch the new obj when loaded
   observe({
     shiny::req(input$dataset_file)
     ext = tools::file_ext(input$dataset_file$datapath)
     validate(need(ext=="rds", "Please upload a .rds file"))
     data$obj = readRDS(file = input$dataset_file$datapath)
-    data$is_loaded=TRUE
   })
   
+  # Find legit_annotations
   observe({
     req(data$obj)
-    data$meta = data$obj@meta.data
-    data$categorical_cols = colnames(data$meta)[which(sapply(data$meta, class) %in% c("character", "factor") & !(colnames(data$meta) %in% categorical_col_exceptions))]
+    data$legit_annotations = legit_annotations(data$obj@meta.data)
+    data$loaded = !is.null(data$obj)
   })
   
-  
-  #set categorical_cols and options for active ident
+  # Get and set annotation / idents
   observe({
-    updateSelectInput(inputId = "annotation", choices = data$categorical_cols)
+    updateSelectInput(inputId = "annotation", choices = data$legit_annotations)
   })
   
-  #set obj active ident
   observe({
     req(input$annotation)
-    data$obj = switch_idents(data$obj, input$annotation)
-    data$annotation_identities = as.vector(unique(data$obj@active.ident))
+    data$obj = SetIdent(data$obj, value = input$annotation)
+    data$annotation_idents = as.vector(unique(data$obj@active.ident))
   })
   
-  #render meta table
+  # Render metadata table
   output$dataset_meta = renderDataTable({
-    data$meta[,data$categorical_cols]
+    req(data$obj)
+    data$obj@meta.data[,data$legit_annotations]
   })
   
-  #add example idents
-  output$annotation_identities = renderText({
+  # Add example/reference idents
+  output$annotation_idents = renderText({
     paste0(
       paste(
-        head(data$annotation_identities, 3),collapse = " "
+        head(data$annotation_idents, 3), collapse = " "
       ),
       "..."
     )
   })
   
-  #check if a dataset is loaded, control conditional tab panel
+  # Conditional panel control based on loaded obj
   output$file_loaded = reactive({
-    return(data$is_loaded)
+    return(data$loaded)
   })
   outputOptions(output, 'file_loaded', suspendWhenHidden=FALSE)
   
-  
-  ###   UMAP tab    ###
+  ## UMAP tab ----
+  umap = reactiveValues(genes=NULL, splitby=NULL)
   
   observe({
-    updateSelectInput(inputId = "umap_splitby", choices = c("None", data$categorical_cols))
+    updateSelectInput(inputId = "umap_splitby", choices = c("None", data$legit_annotations), selected = "None")
   })
   
   observe({
-    umap$genelist = read_genes(input$umap_gene)
-    umap$splitby = input$umap_splitby
-    if (input$umap_splitby == "None"){
-      umap$splitby = NULL
-    }
+    req(input$umap_gene)
+    umap$genes = read_genes(input$umap_gene, data$obj)
+  })
+  
+  observe({
+    req(input$umap_splitby)
+    umap$splitby = replace_nones(input$umap_splitby)
   })
   
   output$umap = renderPlot({
@@ -91,98 +81,130 @@ server = function(input, output){
   })
   
   output$featureplot = renderPlot({
-    req(umap$genelist)
-    FeaturePlot(data$obj, features = umap$genelist, split.by = umap$splitby, combine = TRUE)
+    req(umap$genes)
+    FeaturePlot(data$obj, features = umap$genes, split.by = umap$splitby, combine = TRUE)
   })
   
-  
-  ###   VLN tab   ###
+  ## VLN tab ----
+  vln = reactiveValues(genes=NULL, splitby=NULL)
   
   observe({
-    updateSelectInput(inputId = "vln_splitby", choices = c("None", data$categorical_cols))
+    updateSelectInput(inputId = "vln_splitby", choices = c("None", data$legit_annotations), selected = "None")
   })
   
   observe({
-    vln$genelist = as.vector(stringr::str_trim(unlist(strsplit(input$vln_gene, split=","))))
-    vln$is_multi = length(vln$genelist) > 1
-    updateSelectInput(inputId = "vln_idents", choices = data$annotation_identities)
-    
-    vln$splitby=input$vln_splitby
-    if (input$vln_splitby == "None"){
-      vln$splitby = NULL
-    }
+    req(input$vln_splitby)
+    vln$splitby = replace_nones(input$vln_splitby)
   })
   
+  observe({
+    req(input$vln_gene)
+    vln$genes = read_genes(input$vln_gene, data$obj)
+  })
+  
+  observe({
+    updateSelectInput(inputId = "vln_idents", choices = data$annotation_idents)
+  })
   
   output$vln = renderPlot({
-    req(vln$genelist)
-    VlnPlot(data$obj, features = vln$genelist,
-            stack = vln$is_multi, flip = vln$is_multi,
-            split.by = vln$splitby,
-            idents = input$vln_idents)+
-      bare_theme
+    req(vln$genes, data$obj)
+    flexible_vln(obj = data$obj,
+                 features = vln$genes,
+                 split.by = vln$splitby,
+                 idents = input$vln_idents
+    )
   })
   
-  ###   DotPlot tab   ###
+  ## DotPlot tab ----
+  dot = reactiveValues(genes=NULL)
   
   observe({
-    dot$genelist = as.vector(stringr::str_trim(unlist(strsplit(input$dot_gene, split=","))))
-    updateSelectInput(inputId = "dot_idents", choices = data$annotation_identities)
+    updateSelectInput(inputId = "dot_idents", choices = data$annotation_idents)
+  })
+  
+  observe({
+    req(input$dot_gene, data$obj)
+    dot$genes = read_genes(input$dot_gene, data$obj)
   })
   
   output$dot = renderPlot({
-    req(dot$genelist)
-    DotPlot(data$obj, features = dot$genelist,
-            cols = c("white", "black"), idents = input$dot_idents)+RotatedAxis()+dotplot_theme
+    req(dot$genes, data$obj)
+    DotPlot(data$obj,
+            features = dot$genes,
+            cols = c("white", "black"),
+            idents = input$dot_idents)+
+      RotatedAxis()
   })
   
-  ###   DE tab    ###
+  ## DE tab ----
+  de = reactiveValues(conditions=NULL, ref_cells=NULL, exp_cells=NULL, table=NULL, loaded = NULL)
   
+  # Update choices for annotation and DE varible
   observe({
-    updateSelectInput(inputId = "de_clusters", choices = data$annotation_identities)
+    updateSelectInput(inputId = "de_ident", choices = data$annotation_idents)
   })
-  
   observe({
-    updateSelectInput(inputId = "de_comparison", choices = data$categorical_cols)
+    updateSelectInput(inputId = "de_variable", choices = data$legit_annotations)
   })
   
+  
+  # Update choices for condition
   observe({
-    de$comparison = as.vector(unique(data$meta[[input$de_comparison]])) 
-    updateSelectInput(inputId = "de_reference", choices = de$comparison)
-    updateSelectInput(inputId = "de_experimental", choices = de$comparison)
+    req(data$obj, input$de_variable)
+    de$conditions = data$obj@meta.data[input$de_variable] %>%
+      unique() %>%
+      as.vector()
+  })
+  observe({
+    updateSelectInput(inputId = "de_reference",
+                      choices = de$conditions)
+  })
+  observe({
+    updateSelectInput(inputId = "de_experimental",
+                      choices = de$conditions[de$conditions != input$de_reference])
   })
   
+  # Warning
   output$de_warning = renderText({
     paste0('Differential Expression testing is computationally intensive and may take some time. Only press the "Analyze" button once!')
   })
   
   observeEvent(input$de_analyze, {
-    de$table = FindMarkers(object = data$obj, ident.1 = input$de_experimental, ident.2 = input$de_reference, group.by = input$de_comparison, subset.ident = input$de_clusters, only.pos = FALSE)
+    de$table = FindMarkers(object = data$obj,
+                           ident.1 = input$de_experimental,
+                           ident.2 = input$de_reference,
+                           group.by = input$de_variable,
+                           subset.ident = input$de_ident,
+                           only.pos = FALSE)
     de$table = cbind(rownames(de$table), de$table)
     colnames(de$table)[1] = "gene_name"
-    de$is_loaded=TRUE
+    de$loaded = ~is.null(de$table)
   })
   
   output$de_table = renderDataTable({
     de$table
   })
   
+  
+  # Control conditional download button
+  output$de_loaded = reactive({
+    return(de$loaded)
+  })
+  outputOptions(output, 'de_loaded', suspendWhenHidden=FALSE)
+  
+  # Handle downloads of DEGs as csv
   output$de_download = downloadHandler(
     filename = function() {
-      paste(input$de_reference, "_vs_",input$de_experimental, "_in_", input$de_clusters, ".csv", sep = "")
+      paste(input$de_reference, "_vs_",input$de_experimental, "_in_", input$de_ident, ".csv", sep = "")
     },
     content = function(file) {
       write.csv(de$table, file = file, row.names = FALSE)
     }
   )
   
-  #check if a table is generated, control conditional button
-  output$de_loaded = reactive({
-    return(de$is_loaded)
-  })
-  outputOptions(output, 'de_loaded', suspendWhenHidden=FALSE)
+  ## LR tab ----
   
-  ###  LR tab  ###
+  lr = reactiveValues(table=NULL, subobj=NULL, condition=NULL, conditions=NULL, signatures=NULL, degs=NULL, db=NULL)
   
   output$lr_warning = renderText({
     paste0('Ligand-Receptor analysis is computationally intensive and may take some time. Be conservative. Only press the "Analyze" button once!')
@@ -193,36 +215,44 @@ server = function(input, output){
   })
   
   observe({
-    updateSelectInput(inputId = "lr_clusters", choices = data$annotation_identities)
+    updateSelectInput(inputId = "lr_idents", choices = data$annotation_idents)
   })
   
   observe({
-    updateSelectInput(inputId = "lr_condition", choices = c("None", data$categorical_cols), selected = "None")
+    updateSelectInput(inputId = "lr_condition", choices = c("None", data$legit_annotations), selected = "None")
   })
   
   observe({
-    lr$condition_options = as.vector(unique(data$meta[[input$lr_condition]])) 
-    updateSelectInput(inputId = "lr_reference", choices = lr$condition_options)
-    updateSelectInput(inputId = "lr_experimental", choices = lr$condition_options)
+    req(input$lr_condition)
+    lr$condition = replace_nones(input$lr_condition)
   })
   
   observe({
-    if(input$lr_db == "Mouse"){
-      lr$db = SeuratExplorer:::Mouse_CellTalkDB
-      print("M")
-    }
-    if(input$lr_db == "Human"){
-      lr$db = SeuratExplorer:::Human_CellTalkDB
-      print("H")
-    }
+    req(lr$condition)
+    lr$conditions = data$obj@meta.data %>%
+      pull(input$lr_condition) %>%
+      unique() %>%
+      as.vector()
+    updateSelectInput(inputId = "lr_reference", choices = lr$conditions)
+  })
+  
+  observe({
+    updateSelectInput(inputId = "lr_experimental",
+                      choices = lr$conditions[lr$conditions != input$lr_reference])
+  })
+  
+  observe({
+    lr$db = switch(input$lr_db,
+                   Mouse = SeuratExplorer:::Mouse_CellTalkDB,
+                   Human = SeuratExplorer:::Human_CellTalkDB
+    )
   })
   
   observeEvent(input$lr_analyze, {
-    lr$subobj = subset(data$obj, idents = input$lr_clusters)
+    lr$subobj = subset(data$obj, idents = input$lr_idents)
     lr$signatures = FindAllMarkers(lr$subobj, only.pos = TRUE)%>%
       filter(p_val_adj < input$lr_signature_cutoff)
     lr$table = Analyze_LR(lr$signatures, db = lr$db)
-    lr$is_loaded = TRUE
     if (input$lr_condition != "None"){
       lr$degs = Find_Condition_DEGs(lr$subobj, condition = input$lr_condition, reference.cond = input$lr_reference, experimental.cond = input$lr_experimental, padj.cut = input$lr_deg_cutoff)
       lr$table = Crossreference_LR(lr$table, DEG.table = lr$degs, db = lr$db)
@@ -236,7 +266,7 @@ server = function(input, output){
   
   output$lr_download = downloadHandler(
     filename = function() {
-      paste0(paste(input$lr_clusters, collapse = "_"), "_by_", input$lr_condition, "_LR_table", ".csv")
+      paste0(paste(input$lr_idents, collapse = "_"), "_by_", input$lr_condition, "_LR_table", ".csv")
     },
     content = function(file) {
       write.csv(de$table, file = file, row.names = FALSE)
@@ -244,8 +274,16 @@ server = function(input, output){
   )
   
   output$lr_loaded = reactive({
-    return(lr$is_loaded)
+    return(!is.null(lr$table))
   })
   outputOptions(output, 'lr_loaded', suspendWhenHidden=FALSE)
   
+  
+  ## DEV ----
+  output$dev_out = renderText({
+    "test"
+  })
+  
 }
+
+

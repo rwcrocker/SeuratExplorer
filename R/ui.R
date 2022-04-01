@@ -49,7 +49,6 @@ sidebar = dashboardSidebar(
 )
 
 ## BODY
-
 tab_list = list()
 
 tab_list[["dataset"]] = tabItem("dataset",
@@ -97,8 +96,8 @@ tab_list[["dot"]] = tabItem("dot",
 tab_list[["de"]] = tabItem("de",
           box(textOutput("de_warning"), title = "WARNING", background = "red", width = 12),
           box(
-            selectInput("de_clusters", label = "Cluster(s):", choices = NULL, multiple = FALSE),
-            selectInput("de_comparison", label = "Conditions:", choices = NULL),
+            selectInput("de_ident", label = "Identity:", choices = NULL, multiple = FALSE),
+            selectInput("de_variable", label = "Variable:", choices = NULL),
             selectInput("de_reference", label = "Reference condition:", choices = NULL),
             selectInput("de_experimental", label = "Experimental condition:", choices = NULL)
           ),
@@ -113,14 +112,12 @@ tab_list[["de"]] = tabItem("de",
             )
           )
 
-tab_list[["lr"]]=
-  tabItem("lr",
+tab_list[["lr"]] = tabItem("lr",
           box(
-            textOutput("lr_warning"), title = "WARNING", background = "red", width = 12
-          ),
+            textOutput("lr_warning"), title = "WARNING", background = "red", width = 12),
           box(
             selectInput("lr_db", label = "Database:", choices = NULL, multiple = FALSE),
-            selectInput("lr_clusters", label = "Cluster(s):", choices = NULL, multiple = TRUE),
+            selectInput("lr_idents", label = "Idents:", choices = NULL, multiple = TRUE),
             selectInput("lr_condition", label = "Condition (Optional):", choices = NULL, multiple = FALSE),
             conditionalPanel(
               condition = "input.lr_condition != 'None'",
@@ -144,7 +141,8 @@ tab_list[["lr"]]=
         )
 
 tab_list[["dev"]] = tabItem("dev",
-          textInput(inputId = "test", label = "Input test")
+          textInput(inputId = "test", label = "Input"),
+          textOutput("dev_out")
           )
 
 body = dashboardBody(div(class= "tab-content", tab_list))
