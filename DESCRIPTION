@@ -3,9 +3,9 @@ Title: An Interactive Shiny App for Visualizing scRNAseq Data Processed in Seura
 Version: 0.0.0.9000
 Authors@R: 
     person("Reed", "Crocker", "Reed.Crocker@childrens.harvard.edu", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Maintainer: Reed Crocker <Reed.Crocker@childrens.harvard.edu>
+Description: A simple, one-command package which runs an interactive shiny dashboard capable of common visualizations for single cell RNAseq. The application requires a pre-processed Seurat object, saved as an RDS file.
+License: use_mit_license()
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.2
@@ -17,3 +17,4 @@ Imports:
     shiny,
     shinydashboard,
     stringr
+Depends: R (>= 4.1.0)
