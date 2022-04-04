@@ -1,12 +1,8 @@
 # aux_functions.R
 # auxillary functions needed for the package
 
-#' @import Seurat ggplot2 cowplot
-#' @import dplyr scales shiny shinydashboard
-#' @import stringr purrr
-NULL
-
 #' Launch SeuratExplorer
+#' @import shiny
 #' @return In-browser Shiny Application launch
 #' @export
 launchSeuratExplorer <- function(){
@@ -14,10 +10,10 @@ launchSeuratExplorer <- function(){
   runApp(app, launch.browser = TRUE)
 }
 
-
-## Internal Fxns
-
-#' Get legit annotations from metadata colnames
+#' Get legit annotations from metadata column names
+#' @import purrr
+#' @param df Metadata data.frame from Seurat object
+#' @param max_unique Cut-off for total unique elements in annotations
 legit_annotations = function(df, max_unique = 100){
   legit_type = map_lgl(df, .f = ~ is.character(.x) | is.factor(.x))
   legit_num = map_lgl(df, ~length(unique(.x)) < 100)
@@ -25,7 +21,10 @@ legit_annotations = function(df, max_unique = 100){
   return(la)
 }
 
-# Parse input of comma seperated genes
+#' Parse input of comma seperated genes
+#' @import stringr dplyr magrittr
+#' @param str string to parse
+#' @param obj Seurat object to crossreference parsed genes
 read_genes <- function(str, obj){
   genes = strsplit(str, split=",") %>%
     unlist() %>%
@@ -36,7 +35,8 @@ read_genes <- function(str, obj){
   return(genes_in_obj)
 }
 
-# Replace None with NULL for meaningful selections
+#' Replace 'None' with NULL for meaningful selections
+#' @param input string
 replace_nones = function(input){
   out = input
   is_none = input == "None"
@@ -44,7 +44,12 @@ replace_nones = function(input){
   return(out)
 }
 
-# VlnPlot wrapper wautomated for stacked/non-stacked plots
+#' VlnPlot wrapper for stacked/non-stacked plots
+#' @import Seurat
+#' @param obj Seurat object
+#' @param features Vector of gene names
+#' @param split.by Metadata column name to split violin
+#' @param idents Vector of identies to plot
 flexible_vln = function(obj, features, split.by=NULL, idents=NULL){
   is_multi = length(features) > 1
   plot = VlnPlot(obj, features = features,

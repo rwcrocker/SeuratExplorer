@@ -1,10 +1,12 @@
 # server.R
 ## R shiny server side for SeuratExplorer
 
-#' @import Seurat ggplot2 cowplot
-#' @import dplyr scales shiny shinydashboard
-#' @import stringr
-
+#' Server for SeuratExplorer shiny app
+#' @param input Input from the UI
+#' @param output Output to send back to UI
+#' @import Seurat
+#' @import shiny shinydashboard ggplot2
+#' @import stringr purrr dplyr scales
 server = function(input, output){
   options(shiny.maxRequestSize=5*1024^3)
   
