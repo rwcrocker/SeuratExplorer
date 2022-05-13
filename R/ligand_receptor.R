@@ -45,8 +45,7 @@ get_all_degs = function(obj, annotation, condition, reference, experimental, pad
 #'@param db_path Path to static CellTalk database as .tsv
 #'@return A LR table with labeled interactions
 #'@export
-analyze_LR = function(signatures, db_path){
-  db = read_tsv(db_path)
+analyze_LR = function(signatures, db){
   
   # Subset signatures to Ls and Rs
   signatures = signatures %>%
@@ -108,8 +107,7 @@ analyze_LR = function(signatures, db_path){
 #'@param db_path Path to static CellTalk database as .tsv
 #'@return A LR table with annotated DEGs
 #'@export
-crossreference_degs = function(lr_table, deg_table, db_path){
-  db = read_tsv(db_path)
+crossreference_degs = function(lr_table, deg_table, db){
   lr_table = lr_table %>%
     mutate(from_signature = TRUE)
   

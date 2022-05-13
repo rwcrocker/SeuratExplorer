@@ -252,14 +252,21 @@ server = function(input, output){
   
   observeEvent(input$lr_analyze, {
     lr$subobj = subset(data$obj, idents = input$lr_idents)
-    lr$signatures = FindAllMarkers(lr$subobj, only.pos = TRUE)%>%
+    lr$signatures = FindAllMarkers(lr$subobj, only.pos = TRUE) %>%
       filter(p_val_adj < input$lr_signature_cutoff)
-    lr$table = Analyze_LR(lr$signatures, db = lr$db)
+    lr$table = analyze_LR(lr$signatures, lr$db)
+    
     if (input$lr_condition != "None"){
-      lr$degs = Find_Condition_DEGs(lr$subobj, condition = input$lr_condition, reference.cond = input$lr_reference, experimental.cond = input$lr_experimental, padj.cut = input$lr_deg_cutoff)
-      lr$table = Crossreference_LR(lr$table, DEG.table = lr$degs, db = lr$db)
-    }
-  })
+      lr$degs = get_all_degs(obj = lr$subobj,
+                             annotation = input$annotation,
+                             condition = input$lr_condition,
+                             reference = input$lr_reference,
+                             experimental = input$lr_experimental,
+                             padj.cut=input$lr_deg_cutoff,
+                             log2fc.cut=0.1)
+      lr$table = crossreference_degs(lr_table = lr$table, deg_table = lr$degs, db = lr$db)
+      }
+    })
   
   output$lr_table = renderDataTable(
     lr$table,
