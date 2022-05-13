@@ -2,7 +2,7 @@
 
 #' Wrapper for FindMarkers() with formating for downstream LR analysis
 #'
-#'@import dplyr magrittr purrr Seurat
+#'@import dplyr magrittr purrr Seurat tibble
 #'@param obj Seurat object
 #'@param annotation Column name of object meta.data to annotate identities by
 #'@param condition Column name of object meta.data to test DE against
