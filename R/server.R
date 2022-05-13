@@ -252,8 +252,7 @@ server = function(input, output){
   
   observeEvent(input$lr_analyze, {
     lr$subobj = subset(data$obj, idents = input$lr_idents)
-    lr$signatures = FindAllMarkers(lr$subobj, only.pos = TRUE) %>%
-      filter(p_val_adj < input$lr_signature_cutoff)
+    lr$signatures = FindAllMarkers(lr$subobj, only.pos = TRUE)
     lr$table = analyze_LR(lr$signatures, lr$db)
     
     if (input$lr_condition != "None"){
