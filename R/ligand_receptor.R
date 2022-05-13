@@ -112,7 +112,7 @@ crossreference_degs = function(lr_table, deg_table, db){
     mutate(from_signature = TRUE)
   
   # Look for LR pairs regardless of signature status
-  deg_lr = analyze_LR(deg_table, db_path = db_path)
+  deg_lr = analyze_LR(deg_table, db = db)
   deg_lr = deg_lr %>%
     mutate(both_de = TRUE)
   
