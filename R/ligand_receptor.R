@@ -1,169 +1,146 @@
-# ligand_receptor.R
-# Functions for identifying ligand-receptor pairs in scRNAseq data
+# Ligand-Receptor analysis functions
 
-#' Read comma seperated "pairmates" column as a vector
-csv_to_vector = function(string){
-  vector = unlist(strsplit(string, split=", "))
-  return(vector)
+#' Wrapper for FindMarkers() with formating for downstream LR analysis
+#'
+#'@import dplyr magrittr purrr Seurat
+#'@param obj Seurat object
+#'@param annotation Column name of object meta.data to annotate identities by
+#'@param condition Column name of object meta.data to test DE against
+#'@param reference Value of condition column to use as reference for DE
+#'@param experimental Value of condition column to use as experimental condition for DE
+#'@param padj.cut Threshold for adjusted p-value
+#'@param log2fc.cut Threshold for log2-fold-change
+#'@return A single, merged DF of DEGs across every identity
+#'@export
+get_all_degs = function(obj, annotation, condition, reference, experimental, padj.cut=0.05, log2fc.cut=0.1){
+  cols_legit = annotation %in% colnames(obj@meta.data) & condition %in% colnames(obj@meta.data)
+  if(!cols_legit){stop("Annotation & Condition need to be columns of the object meta.data!")}
+  
+  obj = SetIdent(obj, value = annotation)
+  idents = unique(obj@meta.data[[annotation]])
+  
+  # Iterate identities and find DEGs in each
+  deglist = map(idents,
+                ~ FindMarkers(object = obj, subset.ident = .x,
+                              group.by = condition,
+                              ident.1 = experimental, ident.2 = reference) %>%
+                  filter(p_val_adj < padj.cut) %>%
+                  filter(abs(avg_log2FC) > log2fc.cut) %>%
+                  mutate(cluster = .x) %>%
+                  rownames_to_column(var = "gene")
+  )
+  
+  # Combine into one df
+  merged = reduce(deglist, rbind)
+  merged = merged %>%
+    mutate(id = paste0(gene, "_", cluster))
+  return(merged)
 }
 
 
-#' Determine effect of condition for each cluster
-#' @import cowplot Seurat dplyr ggplot2
-Find_Condition_DEGs=function(seurat_obj, condition, reference.cond, experimental.cond, padj.cut=0.05){
-  require("Seurat", "tidyverse", "ggplot2", "cowplot")
-
-  DEGs = list()
-  for (clust in unique(seurat_obj@active.ident)){
-    DEGs[[clust]] = FindMarkers(object = seurat_obj, ident.1 = experimental.cond, ident.2 = reference.cond, group.by = condition, subset.ident = clust, logfc.threshold = 0.1)
-    DEGs[[clust]]$gene = rownames(DEGs[[clust]])
-    DEGs[[clust]] = DEGs[[clust]]%>%
-      filter(p_val_adj < padj.cut)%>%
-      mutate(cluster = clust)
+#' Generate ligand-receptor table based on gene signatures
+#'
+#'@import stringr dplyr magrittr purrr
+#'@param signatures Output of Seurat function FindAllMarkers() with only.pos = T
+#'@param db_path Path to static CellTalk database as .tsv
+#'@return A LR table with labeled interactions
+#'@export
+analyze_LR = function(signatures, db_path){
+  db = read_tsv(db_path)
+  
+  # Subset signatures to Ls and Rs
+  signatures = signatures %>%
+    mutate(is_ligand = gene %in% db[["ligand_gene_symbol"]]) %>%
+    mutate(is_receptor = gene %in% db[["receptor_gene_symbol"]]) %>%
+    filter(is_ligand | is_receptor)
+  
+  # Add unique ID to each signature
+  signatures$lr = "R"
+  signatures$lr[signatures$is_ligand] = "L"
+  signatures$id = paste0(signatures$gene, "_", signatures$cluster)
+  
+  # Find the possible pairmates of a given gene from the LR database
+  find_pairmates = function(gene, db){
+    pairmates = db %>%
+      filter(ligand_gene_symbol == gene | receptor_gene_symbol == gene) %>%
+      select(ligand_gene_symbol, receptor_gene_symbol)
+    pairmates = unique(unlist(pairmates))
+    pairmates = pairmates[pairmates != gene]
+    return(pairmates)
   }
-  DEGs = bind_rows(DEGs)
-  return(DEGs)
+  
+  # Logic so that ligand always comes first in the pair-name
+  organize_pairs = function(sig, pm, is.lig){
+    if(is.lig){paste0(sig, "-", pm)}
+    else{paste0(pm, "-", sig)}
+  }
+  
+  # Find all pairmates
+  potential_pairmates = map(signatures[["gene"]], find_pairmates, db)
+  real_pairmates = map(potential_pairmates, ~ .x[.x %in% signatures[["gene"]]])
+  names(real_pairmates) = signatures$gene
+  n_real_pairmates = map(real_pairmates, length)
+  
+  # Covert to IDs and find all pairs
+  real_pairmates = map(real_pairmates, ~ signatures$id[signatures$gene %in% .x])
+  real_pairs = pmap(list(sig = signatures$id, pm = real_pairmates, is.lig = signatures$is_ligand), organize_pairs)
+  signatures$n_pairmates = n_real_pairmates
+  signatures$pairs = map(real_pairs, ~ paste0(.x, collapse = ", "))
+  
+  # Generate LR table from all interactions, do some parsing
+  lr = data.frame(interaction = unique(unlist(real_pairs[n_real_pairmates > 0])))
+  lr = lr %>%
+    mutate(ligand_id = str_split(interaction, pattern = "-", simplify = T)[,1]) %>%
+    mutate(receptor_id = str_split(interaction, pattern = "-", simplify = T)[,2]) %>%
+    mutate(ligand = str_split(ligand_id, pattern = "_", simplify = T)[,1]) %>%
+    mutate(receptor = str_split(receptor_id, pattern = "_", simplify = T)[,1]) %>%
+    mutate(ligand_origin = str_split(ligand_id, pattern = "_", simplify = T)[,2]) %>%
+    mutate(receptor_origin = str_split(receptor_id, pattern = "_", simplify = T)[,2])
+  return(lr)
 }
 
 
-#' Subset markers to LR members with CellTalk database and generate a LR table
-Analyze_LR = function(marker_df, db){
-  req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot")
-  lapply(req_packages, require, character.only = TRUE)
+#' Find DE'ed ligand-receptor pairs in LR table
+#'
+#'@import dplyr magrittr purrr
+#'@param lr_table Dataframe generated from analyze_LR()
+#'@param deg_table Dataframe generated from find_all_degs()
+#'@param db_path Path to static CellTalk database as .tsv
+#'@return A LR table with annotated DEGs
+#'@export
+crossreference_degs = function(lr_table, deg_table, db_path){
+  db = read_tsv(db_path)
+  lr_table = lr_table %>%
+    mutate(from_signature = TRUE)
   
-  #Annotate Ls and Rs in marker set
-  marker_df$is_ligand=NA
-  marker_df$is_receptor=NA
-  for (num in 1:length(marker_df$gene)){
-    marker_gene = marker_df$gene[num]
-    marker_df$is_ligand[num] = marker_gene %in% db$ligand_gene_symbol
-    marker_df$is_receptor[num] = marker_gene %in% db$receptor_gene_symbol
-  }
+  # Look for LR pairs regardless of signature status
+  deg_lr = analyze_LR(deg_table, db_path = db_path)
+  deg_lr = deg_lr %>%
+    mutate(both_de = TRUE)
   
-  marker_df = marker_df %>% filter(is_ligand == TRUE | is_receptor == TRUE) # subset to LRs only
+  # Combine
+  merged = merge(lr_table, deg_lr, all=TRUE) %>%
+    mutate(reflexive = ligand_origin == receptor_origin) %>%
+    replace_na(list(from_signature = FALSE, both_de = FALSE))
   
-  #Find all potential and real pairmates for each gene
-  marker_df$possible_pairmates = NA
-  marker_df$pairmates = NA
-  for (num in 1:length(marker_df$gene)){
-    marker_gene = marker_df$gene[num]
-    subset_db = db %>% filter(ligand_gene_symbol == marker_gene | receptor_gene_symbol == marker_gene)
-    
-    potential_pairmates = unique(c(subset_db$ligand_gene_symbol, subset_db$receptor_gene_symbol))
-    potential_pairmates = potential_pairmates[which(!(potential_pairmates == marker_gene))]
-    potential_pairmates_string = paste(potential_pairmates, collapse = ", ")
-    
-    marker_df$possible_pairmates[num] = potential_pairmates_string
-    
-    pairmates = potential_pairmates[which(potential_pairmates %in% marker_df$gene)]
-    pairmates_string = NA
-    if(length(pairmates) > 0){
-      pairmates_string = paste(pairmates, collapse = ", ")
+  # Logic for extracting FC & padj via DE'ed ids
+  crossreference = function(id, column){
+    if (id %in% deg_table$id){
+      return(deg_table[[column]][deg_table[["id"]] == id])
     }
-    marker_df$pairmates[num] = pairmates_string
+    else
+      return(NA)
   }
   
-  #subset to those w/ >= one real pair
-  marker_df = marker_df %>% filter(!(is.na(pairmates)))
+  # Get FC & padj and add meta.data
+  merged = merged %>%
+    mutate(ligand_log2FC = map_dbl(merged$ligand_id, ~ crossreference(.x, "avg_log2FC"))) %>%
+    mutate(ligand_padj = map_dbl(merged$ligand_id, ~ crossreference(.x, "p_val_adj"))) %>%
+    mutate(receptor_log2FC = map_dbl(merged$receptor_id, ~ crossreference(.x, "avg_log2FC"))) %>%
+    mutate(receptor_padj = map_dbl(merged$receptor_id, ~ crossreference(.x, "p_val_adj"))) %>%
+    mutate(any_de = !(is.na(ligand_log2FC) & is.na(receptor_log2FC))) %>%
+    relocate(any_de, .before = both_de)
   
-  #generate another df with only ligands
-  lig_markers = marker_df%>%filter(is_ligand == TRUE)
-  
-  #Generate LR interaction_df from marker_df
-  interaction = c()
-  ligand = c()
-  ligand_cluster=c()
-  ligand_marker_log2fc=c()
-  ligand_marker_fdr=c()
-  receptor = c()
-  receptor_cluster=c()
-  receptor_marker_log2fc=c()
-  receptor_marker_fdr=c()
-  for (num in 1:length(lig_markers$gene)){
-    pairmates = csv_to_vector(lig_markers$pairmates[num])
-    for (pairmate in pairmates){
-      pairmate_clusters = as.vector(unique((marker_df%>%filter(gene == pairmate))$cluster))
-      for (pairmate_cluster in pairmate_clusters){
-        ligand = c(ligand, lig_markers$gene[num])
-        ligand_cluster = c(ligand_cluster, as.vector(lig_markers$cluster[num]))
-        ligand_marker_fdr = c(ligand_marker_fdr, lig_markers$p_val_adj[num])
-        ligand_marker_log2fc = c(ligand_marker_log2fc, lig_markers$avg_log2FC[num])
-        
-        receptor = c(receptor, pairmate)
-        receptor_cluster = c(receptor_cluster, pairmate_cluster)
-        receptor_marker_fdr = c(receptor_marker_fdr, marker_df$p_val_adj[which(marker_df$gene == pairmate & marker_df$cluster == pairmate_cluster)])
-        receptor_marker_log2fc = c(receptor_marker_log2fc, marker_df$avg_log2FC[which(marker_df$gene == pairmate & marker_df$cluster == pairmate_cluster)])
-        
-        interaction = c(interaction, paste0(lig_markers$gene[num], "_",lig_markers$cluster[num], "_", pairmate, "_", pairmate_cluster))
-      }
-    }
-  }
-  
-  LR_table = data.frame(interaction, ligand, ligand_cluster, ligand_marker_log2fc, ligand_marker_fdr,
-                        receptor, receptor_cluster, receptor_marker_log2fc, receptor_marker_fdr)
-  
-  return(LR_table)
-  
+  return(merged)
 }
 
-Crossreference_LR = function(LR.table, DEG.table, db){
-  req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot", "plyr")
-  lapply(req_packages, require, character.only = TRUE)
-  
-  LR.table$receptor_is_condition_DE=NA
-  LR.table$ligand_is_condition_DE=NA
-  
-  LR.table$ligand_condition_log2fc =NA
-  LR.table$receptor_condition_log2fc=NA
-  LR.table$ligand_condition_fdr=NA
-  LR.table$receptor_condition_fdr=NA
-  
-  for (num in 1:length(LR.table$interaction)){
-    Lig = LR.table$ligand[num]
-    Lig_clust = LR.table$ligand_cluster[num]
-    Rec = LR.table$receptor[num]
-    Rec_clust = LR.table$receptor_cluster[num]
-    
-    Lig_DEG = DEG.table %>% filter(gene == Lig & cluster == Lig_clust)
-    LR.table$ligand_is_condition_DE[num] = as.logical(dim(DEG.table %>% filter(gene == Lig & cluster == Lig_clust))[1])
-    if (LR.table$ligand_is_condition_DE[num]){
-      LR.table$ligand_condition_log2fc[num] = Lig_DEG$avg_log2FC
-      LR.table$ligand_condition_fdr[num] = Lig_DEG$p_val_adj
-    }
-    
-    Rec_DEG = DEG.table %>% filter(gene == Rec & cluster == Rec_clust)
-    LR.table$receptor_is_condition_DE[num] = as.logical(dim(DEG.table %>% filter(gene == Rec & cluster == Rec_clust))[1])
-    if(LR.table$receptor_is_condition_DE[num]){
-      LR.table$receptor_condition_log2fc[num] = Rec_DEG$avg_log2FC
-      LR.table$receptor_condition_fdr[num] = Rec_DEG$p_val_adj
-    }
-  }
-  
-  LR.table = LR.table %>% filter(ligand_is_condition_DE == TRUE | receptor_is_condition_DE == TRUE)
-  
-  
-  #Check to make sure there are not DEG-based LR pairs that are not signature genes...
-  #Use the same function on DEGs instead of signatures
-  #Rename stats to be consistent with the LR.table
-  backcross = Analyze_LR(DEG.table, db = db)
-  
-  if(!(all(backcross$interaction %in% LR.table$interaction))){
-    backcross = backcross %>%
-      filter(!(interaction %in% LR.table$interaction))%>%
-      mutate(ligand_is_condition_DE = TRUE)%>%
-      mutate(receptor_is_condition_DE = TRUE)%>%
-      dplyr::rename(ligand_condition_log2fc = ligand_marker_log2fc)%>%
-      dplyr::rename(ligand_condition_fdr = ligand_marker_fdr)%>%
-      dplyr::rename(receptor_condition_log2fc = receptor_marker_log2fc)%>%
-      dplyr::rename(receptor_condition_fdr = receptor_marker_fdr)
-    LR.table = rbind.fill(LR.table, backcross)
-  }
-  else{
-    print("All DE LR pairs are also signature genes",)
-  }
-
-  LR.table = LR.table %>%
-    mutate(both_are_condition_DE = ( receptor_is_condition_DE & ligand_is_condition_DE ) )
-
-  return(LR.table)
-}
