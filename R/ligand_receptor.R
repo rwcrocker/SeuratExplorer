@@ -1,19 +1,15 @@
+# ligand_receptor.R
+# Functions for identifying ligand-receptor pairs in scRNAseq data
 
-### Ligand-Receptor Pipeline  ###
-
-##  --------------  ##
-##  Technical Fxns  ##
-
-#Function to read the csv "pairmates" column as a vector
+#' Read comma seperated "pairmates" column as a vector
 csv_to_vector = function(string){
   vector = unlist(strsplit(string, split=", "))
   return(vector)
 }
 
-##  -------------  ##
-##  Analysis Fxns  ##
 
-# Determine effect of condition for each cluster
+#' Determine effect of condition for each cluster
+#' @import cowplot Seurat dplyr ggplot2
 Find_Condition_DEGs=function(seurat_obj, condition, reference.cond, experimental.cond, padj.cut=0.05){
   require("Seurat", "tidyverse", "ggplot2", "cowplot")
 
@@ -30,7 +26,7 @@ Find_Condition_DEGs=function(seurat_obj, condition, reference.cond, experimental
 }
 
 
-#Subset markers to LR members with CellTalk database and generate a LR table
+#' Subset markers to LR members with CellTalk database and generate a LR table
 Analyze_LR = function(marker_df, db){
   req_packages = c("Seurat", "tidyverse", "ggplot2", "cowplot")
   lapply(req_packages, require, character.only = TRUE)

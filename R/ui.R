@@ -145,7 +145,9 @@ ui = function(){
             textOutput("dev_out")
             )
   
-  body = dashboardBody(div(class= "tab-content", tab_list))
+  body = dashboardBody(
+    div(class= "tab-content", tab_list)
+    )
   
   ui_out = dashboardPage(header, sidebar, body)
   return(ui_out)

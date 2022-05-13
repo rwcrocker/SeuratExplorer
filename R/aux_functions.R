@@ -58,15 +58,3 @@ flexible_vln = function(obj, features, split.by=NULL, idents=NULL){
   return(plot)
 }
 
-
-# # TODO figure out how to implement
-# # Split auto-faceted Dimplot into list of individual ggplots
-# split_facet = function(x){
-#   facet_vars = names(x$facet$params$facets)        
-#   x$facet = ggplot2::ggplot()$facet             
-#   datasets = split(x$data, x$data[facet_vars])   
-#   new_plots = lapply(datasets, function(new_data){
-#     x$data = new_data
-#     return(x)
-#     })
-# } 
